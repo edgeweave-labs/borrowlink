@@ -184,12 +184,12 @@ bl_result bl_frame_encode(uint8_t *output,
     if (output_size < frame_size) {
         return BL_ERROR_BUFFER_TOO_SMALL;
     }
-    bl_write_u16_be(output, seq);
-    output[2] = opcode;
     if (payload_size != 0u) {
-        memcpy(output + BORROWLINK_FRAME_HEADER_SIZE,
+        memmove(output + BORROWLINK_FRAME_HEADER_SIZE,
                payload, payload_size);
     }
+    bl_write_u16_be(output, seq);
+    output[2] = opcode;
     *written = frame_size;
     return BL_OK;
 }

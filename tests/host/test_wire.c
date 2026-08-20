@@ -105,6 +105,23 @@ static void test_frame_round_trip(void)
     assert(memcmp(frame.payload, payload, sizeof(payload)) == 0);
 }
 
+static void test_frame_encode_allows_overlapping_payload(void)
+{
+    static const uint8_t expected[] = {
+        0x12, 0x34, 0x00, 0xaa, 0xbb, 0xcc
+    };
+    uint8_t encoded[sizeof(expected)] = {
+        0, 0, 0xaa, 0xbb, 0xcc, 0
+    };
+    size_t written = 0u;
+
+    assert(bl_frame_encode(encoded, sizeof(encoded), &written,
+                           UINT16_C(0x1234), BORROWLINK_OPCODE_DATA,
+                           encoded + 2u, 3u) == BL_OK);
+    assert(written == sizeof(expected));
+    assert(memcmp(encoded, expected, sizeof(expected)) == 0);
+}
+
 static void test_frame_rejects_malformed_input(void)
 {
     static const uint8_t short_frame[] = {0x00, 0x00};
@@ -382,6 +399,7 @@ int main(void)
     test_beacon_round_trip();
     test_beacon_rejects_invalid_input();
     test_frame_round_trip();
+    test_frame_encode_allows_overlapping_payload();
     test_frame_rejects_malformed_input();
     test_hello_round_trip();
     test_accept_round_trip();
