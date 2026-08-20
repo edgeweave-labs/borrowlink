@@ -72,6 +72,24 @@ bl_result bl_beacon_decode(bl_beacon *beacon,
                            const uint8_t *input,
                            size_t input_size);
 
+typedef struct {
+    uint16_t seq;
+    uint8_t opcode;
+    const uint8_t *payload;
+    size_t payload_size;
+} bl_frame_view;
+
+bl_result bl_frame_encode(uint8_t *output,
+                          size_t output_size,
+                          size_t *written,
+                          uint16_t seq,
+                          uint8_t opcode,
+                          const uint8_t *payload,
+                          size_t payload_size);
+bl_result bl_frame_decode(bl_frame_view *frame,
+                          const uint8_t *input,
+                          size_t input_size);
+
 #ifdef __cplusplus
 }
 #endif

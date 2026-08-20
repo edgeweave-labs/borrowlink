@@ -1,5 +1,7 @@
 #include <borrowlink/borrowlink.h>
 
+#include <string.h>
+
 static uint16_t bl_read_u16_be(const uint8_t *input)
 {
     return (uint16_t)(((uint16_t)input[0] << 8) | input[1]);
@@ -87,5 +89,79 @@ bl_result bl_beacon_decode(bl_beacon *beacon,
         return result;
     }
     *beacon = decoded;
+    return BL_OK;
+}
+
+static int bl_opcode_is_known(uint8_t opcode)
+{
+    switch (opcode) {
+    case BORROWLINK_OPCODE_DATA:
+    case BORROWLINK_OPCODE_DATA_END_MESSAGE:
+    case BORROWLINK_OPCODE_DATA_END_STREAM:
+    case BORROWLINK_OPCODE_DATA_END_MESSAGE_STREAM:
+    case BORROWLINK_OPCODE_HELLO:
+    case BORROWLINK_OPCODE_ACCEPT:
+    case BORROWLINK_OPCODE_STATUS:
+    case BORROWLINK_OPCODE_RESET:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+bl_result bl_frame_encode(uint8_t *output,
+                          size_t output_size,
+                          size_t *written,
+                          uint16_t seq,
+                          uint8_t opcode,
+                          const uint8_t *payload,
+                          size_t payload_size)
+{
+    size_t frame_size;
+
+    if (output == NULL || written == NULL ||
+        (payload == NULL && payload_size != 0u)) {
+        return BL_ERROR_ARGUMENT;
+    }
+    if (!bl_opcode_is_known(opcode)) {
+        return BL_ERROR_UNSUPPORTED_OPCODE;
+    }
+    if (payload_size > SIZE_MAX - BORROWLINK_FRAME_HEADER_SIZE) {
+        return BL_ERROR_BUFFER_TOO_SMALL;
+    }
+    frame_size = BORROWLINK_FRAME_HEADER_SIZE + payload_size;
+    if (output_size < frame_size) {
+        return BL_ERROR_BUFFER_TOO_SMALL;
+    }
+    bl_write_u16_be(output, seq);
+    output[2] = opcode;
+    if (payload_size != 0u) {
+        memcpy(output + BORROWLINK_FRAME_HEADER_SIZE,
+               payload, payload_size);
+    }
+    *written = frame_size;
+    return BL_OK;
+}
+
+bl_result bl_frame_decode(bl_frame_view *frame,
+                          const uint8_t *input,
+                          size_t input_size)
+{
+    bl_frame_view decoded;
+
+    if (frame == NULL || input == NULL) {
+        return BL_ERROR_ARGUMENT;
+    }
+    if (input_size < BORROWLINK_FRAME_HEADER_SIZE) {
+        return BL_ERROR_MALFORMED;
+    }
+    if (!bl_opcode_is_known(input[2])) {
+        return BL_ERROR_UNSUPPORTED_OPCODE;
+    }
+    decoded.seq = bl_read_u16_be(input);
+    decoded.opcode = input[2];
+    decoded.payload = input + BORROWLINK_FRAME_HEADER_SIZE;
+    decoded.payload_size = input_size - BORROWLINK_FRAME_HEADER_SIZE;
+    *frame = decoded;
     return BL_OK;
 }
