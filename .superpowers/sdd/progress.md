@@ -9,3 +9,4 @@ Branch: `feat/draft2-wire`
 | 2. Beacon codec | complete | `d1fdead` | PASS/PASS (`task-2-review.md`) |
 | 3. Frame codec | complete | `ac668c6` | PASS/PASS (`task-3-review.md`) |
 | 4. HELLO/ACCEPT codecs | complete | `d83247b`, `02e9d0d` | PASS/PASS (`task-4-review.md`) |
+| Final branch review | complete | `010ebeb` overlap fix | Ready to merge (`final-review.md`) |
