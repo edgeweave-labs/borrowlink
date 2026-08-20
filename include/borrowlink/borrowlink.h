@@ -90,6 +90,32 @@ bl_result bl_frame_decode(bl_frame_view *frame,
                           const uint8_t *input,
                           size_t input_size);
 
+typedef struct {
+    uint8_t version;
+    uint8_t profile;
+    uint8_t delivery;
+    uint16_t xid;
+    uint64_t node_id;
+    uint16_t max_rx_payload;
+} bl_hello;
+
+typedef struct {
+    uint8_t version;
+    uint8_t delivery;
+    uint16_t xid;
+    uint64_t node_id;
+    uint16_t max_rx_payload;
+} bl_accept;
+
+bl_result bl_hello_encode(uint8_t *output, size_t output_size,
+                          const bl_hello *hello);
+bl_result bl_hello_decode(bl_hello *hello, const uint8_t *input,
+                          size_t input_size);
+bl_result bl_accept_encode(uint8_t *output, size_t output_size,
+                           const bl_accept *accept);
+bl_result bl_accept_decode(bl_accept *accept, const uint8_t *input,
+                           size_t input_size);
+
 #ifdef __cplusplus
 }
 #endif
