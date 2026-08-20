@@ -1,0 +1,20 @@
+#include <assert.h>
+#include <stdint.h>
+
+#include <borrowlink/borrowlink.h>
+
+int main(void)
+{
+    assert(BORROWLINK_PROTOCOL_VERSION == UINT8_C(0x01));
+    assert(BORROWLINK_INTENT_HTTP_REQUEST == UINT8_C(0x01));
+    assert(BORROWLINK_DISCOVERY_PAYLOAD_SIZE == 6u);
+    assert(BORROWLINK_CHUNK_HEADER_SIZE == 3u);
+    assert(BORROWLINK_CHUNK_FLAG_FINAL == UINT8_C(0x01));
+    assert(BORROWLINK_CONTROL_IN_PROGRESS == UINT8_C(0x00));
+    assert(BORROWLINK_CONTROL_COMPLETE == UINT8_C(0x01));
+    assert(BORROWLINK_CONTROL_NO_NETWORK == UINT8_C(0x10));
+    assert(BORROWLINK_CONTROL_UPSTREAM_ERROR == UINT8_C(0x11));
+    assert(BORROWLINK_CONTROL_UPSTREAM_TIMEOUT == UINT8_C(0x12));
+    assert(BORROWLINK_CONTROL_REJECTED == UINT8_C(0x13));
+    return 0;
+}
