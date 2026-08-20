@@ -183,40 +183,198 @@ static void test_accept_round_trip(void)
     assert(output.max_rx_payload == input.max_rx_payload);
 }
 
-static void test_handshake_rejects_invalid_fields(void)
+static void assert_hello_decode_rejected(const uint8_t *input,
+                                         size_t input_size,
+                                         bl_result expected)
 {
-    uint8_t hello_bytes[BORROWLINK_HELLO_PAYLOAD_SIZE] = {0};
-    uint8_t accept_bytes[BORROWLINK_ACCEPT_PAYLOAD_SIZE] = {0};
+    bl_hello hello;
+    bl_hello unchanged;
+
+    memset(&hello, 0xa5, sizeof(hello));
+    memset(&unchanged, 0xa5, sizeof(unchanged));
+    assert(bl_hello_decode(&hello, input, input_size) == expected);
+    assert(memcmp(&hello, &unchanged, sizeof(hello)) == 0);
+}
+
+static void assert_accept_decode_rejected(const uint8_t *input,
+                                          size_t input_size,
+                                          bl_result expected)
+{
+    bl_accept accept;
+    bl_accept unchanged;
+
+    memset(&accept, 0xa5, sizeof(accept));
+    memset(&unchanged, 0xa5, sizeof(unchanged));
+    assert(bl_accept_decode(&accept, input, input_size) == expected);
+    assert(memcmp(&accept, &unchanged, sizeof(accept)) == 0);
+}
+
+static void test_handshake_encoders_reject_invalid_input(void)
+{
+    uint8_t hello_bytes[BORROWLINK_HELLO_PAYLOAD_SIZE];
+    uint8_t accept_bytes[BORROWLINK_ACCEPT_PAYLOAD_SIZE];
+    uint8_t hello_unchanged[BORROWLINK_HELLO_PAYLOAD_SIZE];
+    uint8_t accept_unchanged[BORROWLINK_ACCEPT_PAYLOAD_SIZE];
     bl_hello hello;
     bl_accept accept;
 
     hello.version = BORROWLINK_PROTOCOL_VERSION;
     hello.profile = BORROWLINK_PROFILE_HTTP;
-    hello.delivery = BORROWLINK_DELIVERY_REALTIME;
+    hello.delivery = BORROWLINK_DELIVERY_RELIABLE;
     hello.xid = UINT16_C(1);
     hello.node_id = UINT64_C(1);
     hello.max_rx_payload = UINT16_C(17);
-    assert(bl_hello_encode(hello_bytes, sizeof(hello_bytes), &hello) ==
-           BL_ERROR_MALFORMED);
-
-    hello.delivery = BORROWLINK_DELIVERY_RELIABLE;
-    hello.node_id = UINT64_C(0);
-    assert(bl_hello_encode(hello_bytes, sizeof(hello_bytes), &hello) ==
-           BL_ERROR_MALFORMED);
-
-    memset(&hello, 0xa5, sizeof(hello));
-    assert(bl_hello_decode(&hello, hello_bytes,
-                           sizeof(hello_bytes) - 1u) ==
-           BL_ERROR_MALFORMED);
-    assert(hello.version == UINT8_C(0xa5));
-
     accept.version = BORROWLINK_PROTOCOL_VERSION;
-    accept.delivery = UINT8_C(0x7f);
+    accept.delivery = BORROWLINK_DELIVERY_RELIABLE;
     accept.xid = UINT16_C(1);
     accept.node_id = UINT64_C(1);
     accept.max_rx_payload = UINT16_C(17);
+
+    memset(hello_bytes, 0xa5, sizeof(hello_bytes));
+    memset(hello_unchanged, 0xa5, sizeof(hello_unchanged));
+    assert(bl_hello_encode(NULL, sizeof(hello_bytes), &hello) ==
+           BL_ERROR_ARGUMENT);
+    assert(bl_hello_encode(hello_bytes, sizeof(hello_bytes), NULL) ==
+           BL_ERROR_ARGUMENT);
+    assert(memcmp(hello_bytes, hello_unchanged, sizeof(hello_bytes)) == 0);
+    assert(bl_hello_encode(hello_bytes, sizeof(hello_bytes) - 1u, &hello) ==
+           BL_ERROR_BUFFER_TOO_SMALL);
+    assert(memcmp(hello_bytes, hello_unchanged, sizeof(hello_bytes)) == 0);
+
+    hello.version = UINT8_C(0x02);
+    assert(bl_hello_encode(hello_bytes, sizeof(hello_bytes), &hello) ==
+           BL_ERROR_UNSUPPORTED_VERSION);
+    hello.version = BORROWLINK_PROTOCOL_VERSION;
+    hello.profile = UINT8_C(0x7f);
+    assert(bl_hello_encode(hello_bytes, sizeof(hello_bytes), &hello) ==
+           BL_ERROR_UNSUPPORTED_PROFILE);
+    hello.profile = BORROWLINK_PROFILE_HTTP;
+    hello.delivery = UINT8_C(0x7f);
+    assert(bl_hello_encode(hello_bytes, sizeof(hello_bytes), &hello) ==
+           BL_ERROR_UNSUPPORTED_DELIVERY);
+    hello.delivery = BORROWLINK_DELIVERY_REALTIME;
+    assert(bl_hello_encode(hello_bytes, sizeof(hello_bytes), &hello) ==
+           BL_ERROR_MALFORMED);
+    hello.delivery = BORROWLINK_DELIVERY_RELIABLE;
+    hello.xid = UINT16_C(0);
+    assert(bl_hello_encode(hello_bytes, sizeof(hello_bytes), &hello) ==
+           BL_ERROR_MALFORMED);
+    hello.xid = UINT16_C(1);
+    hello.node_id = UINT64_C(0);
+    assert(bl_hello_encode(hello_bytes, sizeof(hello_bytes), &hello) ==
+           BL_ERROR_MALFORMED);
+    hello.node_id = UINT64_C(1);
+    hello.max_rx_payload = UINT16_C(0);
+    assert(bl_hello_encode(hello_bytes, sizeof(hello_bytes), &hello) ==
+           BL_ERROR_MALFORMED);
+
+    memset(accept_bytes, 0xa5, sizeof(accept_bytes));
+    memset(accept_unchanged, 0xa5, sizeof(accept_unchanged));
+    assert(bl_accept_encode(NULL, sizeof(accept_bytes), &accept) ==
+           BL_ERROR_ARGUMENT);
+    assert(bl_accept_encode(accept_bytes, sizeof(accept_bytes), NULL) ==
+           BL_ERROR_ARGUMENT);
+    assert(memcmp(accept_bytes, accept_unchanged, sizeof(accept_bytes)) == 0);
+    assert(bl_accept_encode(accept_bytes, sizeof(accept_bytes) - 1u,
+                            &accept) == BL_ERROR_BUFFER_TOO_SMALL);
+    assert(memcmp(accept_bytes, accept_unchanged, sizeof(accept_bytes)) == 0);
+
+    accept.version = UINT8_C(0x02);
+    assert(bl_accept_encode(accept_bytes, sizeof(accept_bytes), &accept) ==
+           BL_ERROR_UNSUPPORTED_VERSION);
+    accept.version = BORROWLINK_PROTOCOL_VERSION;
+    accept.delivery = UINT8_C(0x7f);
     assert(bl_accept_encode(accept_bytes, sizeof(accept_bytes), &accept) ==
            BL_ERROR_UNSUPPORTED_DELIVERY);
+    accept.delivery = BORROWLINK_DELIVERY_RELIABLE;
+    accept.xid = UINT16_C(0);
+    assert(bl_accept_encode(accept_bytes, sizeof(accept_bytes), &accept) ==
+           BL_ERROR_MALFORMED);
+    accept.xid = UINT16_C(1);
+    accept.node_id = UINT64_C(0);
+    assert(bl_accept_encode(accept_bytes, sizeof(accept_bytes), &accept) ==
+           BL_ERROR_MALFORMED);
+    accept.node_id = UINT64_C(1);
+    accept.max_rx_payload = UINT16_C(0);
+    assert(bl_accept_encode(accept_bytes, sizeof(accept_bytes), &accept) ==
+           BL_ERROR_MALFORMED);
+}
+
+static void test_handshake_decoders_preserve_output_on_error(void)
+{
+    static const uint8_t hello_valid[BORROWLINK_HELLO_PAYLOAD_SIZE] = {
+        0x01, 0x01, 0x00, 0x00, 0x01,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        0x00, 0x01
+    };
+    static const uint8_t accept_valid[BORROWLINK_ACCEPT_PAYLOAD_SIZE] = {
+        0x01, 0x00, 0x00, 0x01,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        0x00, 0x01
+    };
+    uint8_t hello_bytes[BORROWLINK_HELLO_PAYLOAD_SIZE];
+    uint8_t accept_bytes[BORROWLINK_ACCEPT_PAYLOAD_SIZE];
+
+    assert(bl_hello_decode(NULL, hello_valid, sizeof(hello_valid)) ==
+           BL_ERROR_ARGUMENT);
+    assert_hello_decode_rejected(NULL, sizeof(hello_valid), BL_ERROR_ARGUMENT);
+    assert_hello_decode_rejected(hello_valid, sizeof(hello_valid) - 1u,
+                                 BL_ERROR_MALFORMED);
+    memcpy(hello_bytes, hello_valid, sizeof(hello_bytes));
+    hello_bytes[0] = UINT8_C(0x02);
+    assert_hello_decode_rejected(hello_bytes, sizeof(hello_bytes),
+                                 BL_ERROR_UNSUPPORTED_VERSION);
+    hello_bytes[1] = UINT8_C(0x7f);
+    hello_bytes[0] = BORROWLINK_PROTOCOL_VERSION;
+    assert_hello_decode_rejected(hello_bytes, sizeof(hello_bytes),
+                                 BL_ERROR_UNSUPPORTED_PROFILE);
+    hello_bytes[1] = BORROWLINK_PROFILE_HTTP;
+    hello_bytes[2] = UINT8_C(0x7f);
+    assert_hello_decode_rejected(hello_bytes, sizeof(hello_bytes),
+                                 BL_ERROR_UNSUPPORTED_DELIVERY);
+    hello_bytes[2] = BORROWLINK_DELIVERY_RELIABLE;
+    hello_bytes[3] = 0u;
+    hello_bytes[4] = 0u;
+    assert_hello_decode_rejected(hello_bytes, sizeof(hello_bytes),
+                                 BL_ERROR_MALFORMED);
+    memcpy(hello_bytes, hello_valid, sizeof(hello_bytes));
+    memset(hello_bytes + 5, 0, 8u);
+    assert_hello_decode_rejected(hello_bytes, sizeof(hello_bytes),
+                                 BL_ERROR_MALFORMED);
+    memcpy(hello_bytes, hello_valid, sizeof(hello_bytes));
+    hello_bytes[13] = 0u;
+    hello_bytes[14] = 0u;
+    assert_hello_decode_rejected(hello_bytes, sizeof(hello_bytes),
+                                 BL_ERROR_MALFORMED);
+
+    assert(bl_accept_decode(NULL, accept_valid, sizeof(accept_valid)) ==
+           BL_ERROR_ARGUMENT);
+    assert_accept_decode_rejected(NULL, sizeof(accept_valid),
+                                  BL_ERROR_ARGUMENT);
+    assert_accept_decode_rejected(accept_valid, sizeof(accept_valid) - 1u,
+                                  BL_ERROR_MALFORMED);
+    memcpy(accept_bytes, accept_valid, sizeof(accept_bytes));
+    accept_bytes[0] = UINT8_C(0x02);
+    assert_accept_decode_rejected(accept_bytes, sizeof(accept_bytes),
+                                  BL_ERROR_UNSUPPORTED_VERSION);
+    accept_bytes[1] = UINT8_C(0x7f);
+    accept_bytes[0] = BORROWLINK_PROTOCOL_VERSION;
+    assert_accept_decode_rejected(accept_bytes, sizeof(accept_bytes),
+                                  BL_ERROR_UNSUPPORTED_DELIVERY);
+    accept_bytes[1] = BORROWLINK_DELIVERY_RELIABLE;
+    accept_bytes[2] = 0u;
+    accept_bytes[3] = 0u;
+    assert_accept_decode_rejected(accept_bytes, sizeof(accept_bytes),
+                                  BL_ERROR_MALFORMED);
+    memcpy(accept_bytes, accept_valid, sizeof(accept_bytes));
+    memset(accept_bytes + 4, 0, 8u);
+    assert_accept_decode_rejected(accept_bytes, sizeof(accept_bytes),
+                                  BL_ERROR_MALFORMED);
+    memcpy(accept_bytes, accept_valid, sizeof(accept_bytes));
+    accept_bytes[12] = 0u;
+    accept_bytes[13] = 0u;
+    assert_accept_decode_rejected(accept_bytes, sizeof(accept_bytes),
+                                  BL_ERROR_MALFORMED);
 }
 
 int main(void)
@@ -227,6 +385,7 @@ int main(void)
     test_frame_rejects_malformed_input();
     test_hello_round_trip();
     test_accept_round_trip();
-    test_handshake_rejects_invalid_fields();
+    test_handshake_encoders_reject_invalid_input();
+    test_handshake_decoders_preserve_output_on_error();
     return 0;
 }
