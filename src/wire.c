@@ -13,9 +13,60 @@ static void bl_write_u16_be(uint8_t *output, uint16_t value)
     output[1] = (uint8_t)value;
 }
 
+static uint64_t bl_read_u64_be(const uint8_t *input)
+{
+    uint64_t value = 0u;
+    size_t index;
+
+    for (index = 0u; index < 8u; ++index) {
+        value = (value << 8) | input[index];
+    }
+    return value;
+}
+
+static void bl_write_u64_be(uint8_t *output, uint64_t value)
+{
+    size_t index;
+
+    for (index = 0u; index < 8u; ++index) {
+        output[7u - index] = (uint8_t)value;
+        value >>= 8;
+    }
+}
+
 static int bl_profile_is_known(uint8_t profile)
 {
     return profile <= BORROWLINK_PROFILE_MESSAGE;
+}
+
+static bl_result bl_delivery_validate(uint8_t delivery)
+{
+    if (delivery != BORROWLINK_DELIVERY_RELIABLE &&
+        delivery != BORROWLINK_DELIVERY_REALTIME) {
+        return BL_ERROR_UNSUPPORTED_DELIVERY;
+    }
+    return BL_OK;
+}
+
+static bl_result bl_handshake_common_validate(uint8_t version,
+                                              uint8_t delivery,
+                                              uint16_t xid,
+                                              uint64_t node_id,
+                                              uint16_t max_rx_payload)
+{
+    bl_result result;
+
+    if (version != BORROWLINK_PROTOCOL_VERSION) {
+        return BL_ERROR_UNSUPPORTED_VERSION;
+    }
+    result = bl_delivery_validate(delivery);
+    if (result != BL_OK) {
+        return result;
+    }
+    if (xid == 0u || node_id == 0u || max_rx_payload == 0u) {
+        return BL_ERROR_MALFORMED;
+    }
+    return BL_OK;
 }
 
 static bl_result bl_beacon_validate(const bl_beacon *beacon, int encoding)
@@ -163,5 +214,131 @@ bl_result bl_frame_decode(bl_frame_view *frame,
     decoded.payload = input + BORROWLINK_FRAME_HEADER_SIZE;
     decoded.payload_size = input_size - BORROWLINK_FRAME_HEADER_SIZE;
     *frame = decoded;
+    return BL_OK;
+}
+
+static bl_result bl_hello_validate(const bl_hello *hello)
+{
+    bl_result result;
+
+    result = bl_handshake_common_validate(
+        hello->version, hello->delivery, hello->xid,
+        hello->node_id, hello->max_rx_payload);
+    if (result != BL_OK) {
+        return result;
+    }
+    if (hello->profile == BORROWLINK_PROFILE_PRESENCE ||
+        !bl_profile_is_known(hello->profile)) {
+        return BL_ERROR_UNSUPPORTED_PROFILE;
+    }
+    if (hello->profile == BORROWLINK_PROFILE_HTTP &&
+        hello->delivery != BORROWLINK_DELIVERY_RELIABLE) {
+        return BL_ERROR_MALFORMED;
+    }
+    return BL_OK;
+}
+
+bl_result bl_hello_encode(uint8_t *output, size_t output_size,
+                          const bl_hello *hello)
+{
+    bl_result result;
+
+    if (output == NULL || hello == NULL) {
+        return BL_ERROR_ARGUMENT;
+    }
+    if (output_size < BORROWLINK_HELLO_PAYLOAD_SIZE) {
+        return BL_ERROR_BUFFER_TOO_SMALL;
+    }
+    result = bl_hello_validate(hello);
+    if (result != BL_OK) {
+        return result;
+    }
+    output[0] = hello->version;
+    output[1] = hello->profile;
+    output[2] = hello->delivery;
+    bl_write_u16_be(output + 3, hello->xid);
+    bl_write_u64_be(output + 5, hello->node_id);
+    bl_write_u16_be(output + 13, hello->max_rx_payload);
+    return BL_OK;
+}
+
+bl_result bl_hello_decode(bl_hello *hello, const uint8_t *input,
+                          size_t input_size)
+{
+    bl_hello decoded;
+    bl_result result;
+
+    if (hello == NULL || input == NULL) {
+        return BL_ERROR_ARGUMENT;
+    }
+    if (input_size != BORROWLINK_HELLO_PAYLOAD_SIZE) {
+        return BL_ERROR_MALFORMED;
+    }
+    decoded.version = input[0];
+    decoded.profile = input[1];
+    decoded.delivery = input[2];
+    decoded.xid = bl_read_u16_be(input + 3);
+    decoded.node_id = bl_read_u64_be(input + 5);
+    decoded.max_rx_payload = bl_read_u16_be(input + 13);
+    result = bl_hello_validate(&decoded);
+    if (result != BL_OK) {
+        return result;
+    }
+    *hello = decoded;
+    return BL_OK;
+}
+
+static bl_result bl_accept_validate(const bl_accept *accept)
+{
+    return bl_handshake_common_validate(
+        accept->version, accept->delivery, accept->xid,
+        accept->node_id, accept->max_rx_payload);
+}
+
+bl_result bl_accept_encode(uint8_t *output, size_t output_size,
+                           const bl_accept *accept)
+{
+    bl_result result;
+
+    if (output == NULL || accept == NULL) {
+        return BL_ERROR_ARGUMENT;
+    }
+    if (output_size < BORROWLINK_ACCEPT_PAYLOAD_SIZE) {
+        return BL_ERROR_BUFFER_TOO_SMALL;
+    }
+    result = bl_accept_validate(accept);
+    if (result != BL_OK) {
+        return result;
+    }
+    output[0] = accept->version;
+    output[1] = accept->delivery;
+    bl_write_u16_be(output + 2, accept->xid);
+    bl_write_u64_be(output + 4, accept->node_id);
+    bl_write_u16_be(output + 12, accept->max_rx_payload);
+    return BL_OK;
+}
+
+bl_result bl_accept_decode(bl_accept *accept, const uint8_t *input,
+                           size_t input_size)
+{
+    bl_accept decoded;
+    bl_result result;
+
+    if (accept == NULL || input == NULL) {
+        return BL_ERROR_ARGUMENT;
+    }
+    if (input_size != BORROWLINK_ACCEPT_PAYLOAD_SIZE) {
+        return BL_ERROR_MALFORMED;
+    }
+    decoded.version = input[0];
+    decoded.delivery = input[1];
+    decoded.xid = bl_read_u16_be(input + 2);
+    decoded.node_id = bl_read_u64_be(input + 4);
+    decoded.max_rx_payload = bl_read_u16_be(input + 12);
+    result = bl_accept_validate(&decoded);
+    if (result != BL_OK) {
+        return result;
+    }
+    *accept = decoded;
     return BL_OK;
 }

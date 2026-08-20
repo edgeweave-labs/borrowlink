@@ -6,10 +6,18 @@ The protocol is currently `draft-1` and has not been implemented or validated on
 
 ## Development
 
-Include the public protocol constants with:
+BorrowLink currently implements the draft-2 byte codec for Beacon Data,
+frames, HELLO, and ACCEPT. Session policy and platform adapters are not yet
+implemented.
+
+Include the public API with:
 
 ```c
 #include <borrowlink/borrowlink.h>
 ```
 
-Run the host compatibility check with `tests/host/run.sh`.
+Run all host checks with:
+
+```sh
+tests/host/run.sh
+```
