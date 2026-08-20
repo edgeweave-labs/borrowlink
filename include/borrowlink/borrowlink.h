@@ -57,6 +57,21 @@ typedef enum {
     BL_ERROR_UNSUPPORTED_OPCODE
 } bl_result;
 
+typedef struct {
+    uint8_t version;
+    uint8_t profile;
+    uint16_t xid;
+    uint8_t attempt;
+    uint8_t flags;
+} bl_beacon;
+
+bl_result bl_beacon_encode(uint8_t *output,
+                           size_t output_size,
+                           const bl_beacon *beacon);
+bl_result bl_beacon_decode(bl_beacon *beacon,
+                           const uint8_t *input,
+                           size_t input_size);
+
 #ifdef __cplusplus
 }
 #endif
