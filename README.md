@@ -21,3 +21,25 @@ Run all host checks with:
 ```sh
 tests/host/run.sh
 ```
+
+## ESP-IDF dependency
+
+BorrowLink release versions are separate from the wire protocol byte version.
+The first component release is `0.1.0`; the current wire protocol version is
+`0x01`.
+
+```yaml
+dependencies:
+  borrowlink:
+    git: https://github.com/edgeweave-labs/borrowlink.git
+    version: v0.1.0
+```
+
+## ESP-IDF smoke build
+
+```bash
+./scripts/bootstrap-idf.sh
+export IDF_TARGET=esp32s3
+source ../.tools/esp-idf-v5.5.2/export.sh
+idf.py -C examples/component-smoke build
+```

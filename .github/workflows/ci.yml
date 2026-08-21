@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run host checks
+        run: tests/host/run.sh
+
+  idf-component:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned ESP-IDF
+        run: scripts/bootstrap-idf.sh
+      - name: Build component smoke project
+        shell: bash
+        run: |
+          version="$(cat .idf-version)"
+          export IDF_TARGET=esp32s3
+          source "../.tools/esp-idf-$version/export.sh"
+          idf.py -C examples/component-smoke build

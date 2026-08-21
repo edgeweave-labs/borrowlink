@@ -1,0 +1,4 @@
+version: "0.1.0"
+description: "BorrowLink wire protocol codec for ESP-IDF devices"
+repository: "https://github.com/edgeweave-labs/borrowlink.git"
+license: "Apache-2.0"
