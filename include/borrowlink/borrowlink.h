@@ -54,8 +54,35 @@ typedef enum {
     BL_ERROR_UNSUPPORTED_VERSION,
     BL_ERROR_UNSUPPORTED_PROFILE,
     BL_ERROR_UNSUPPORTED_DELIVERY,
-    BL_ERROR_UNSUPPORTED_OPCODE
+    BL_ERROR_UNSUPPORTED_OPCODE,
+    /* Added for the session, message-profile and stream-binding layers.
+     * The values above keep their numbers. */
+    BL_ERROR_STATE,            /* event or call not legal in the current state */
+    BL_ERROR_BUSY,             /* the previous action has not been reported done */
+    BL_ERROR_LIMIT_EXCEEDED,   /* a caller-supplied limit was exceeded */
+    BL_ERROR_UNSUPPORTED_ROLE, /* responder role is reserved, not implemented */
+    BL_ERROR_UNKNOWN_ID        /* no such outstanding request/message id */
 } bl_result;
+
+/* PROTOCOL.md section 6: the three logical channels.  GATT maps them to the
+ * Control, Reliable Data and Realtime Data characteristics; the stream binding
+ * (docs/draft-3-proposal.md) carries the same numbers in its record header. */
+typedef enum {
+    BL_CHANNEL_CONTROL = 0,
+    BL_CHANNEL_RELIABLE = 1,
+    BL_CHANNEL_REALTIME = 2
+} bl_channel;
+
+/* PROTOCOL.md section 14: core error classes. */
+typedef enum {
+    BL_ERR_NONE = 0,
+    BL_ERR_CALLER,
+    BL_ERR_PROTOCOL,
+    BL_ERR_SECURITY,
+    BL_ERR_LIMIT,
+    BL_ERR_TIMEOUT,
+    BL_ERR_TRANSPORT
+} bl_error_class;
 
 typedef struct {
     uint8_t version;
