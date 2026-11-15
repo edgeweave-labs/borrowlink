@@ -76,7 +76,10 @@ bl_result bl_driver_send(bl_driver *d, const uint8_t *data, size_t size,
 /* Closes my direction (DATA_END_STREAM). */
 bl_result bl_driver_close(bl_driver *d);
 bl_result bl_driver_reset(bl_driver *d, uint8_t reason);
+/* The transport failed (error, reset). */
 bl_result bl_driver_link_lost(bl_driver *d);
+/* The peer closed the transport in an orderly way (TCP FIN, recv() == 0). */
+bl_result bl_driver_link_closed(bl_driver *d);
 bl_result bl_driver_tick(bl_driver *d, uint32_t now_ms);
 
 #ifdef __cplusplus

@@ -478,6 +478,22 @@ static bl_result bl_on_link_lost(bl_session *s, bl_action *action)
     return BL_OK;
 }
 
+static bl_result bl_on_link_closed(bl_session *s, bl_action *action)
+{
+    /* Orderly transport close.  If my direction was already closed, the
+     * peer's close stands in for its DATA_END_STREAM: the session is complete
+     * and no link action is owed because the link is gone. */
+    if (s->phase == BL_PHASE_ACTIVE && s->tx_ended && !s->rx_msg_open) {
+        s->outstanding = BL_ACT_NONE;
+        s->pending_kind = BL_PENDING_NONE;
+        s->rx_ended = 1u;
+        bl_end_session(s, 0u, BL_ERR_NONE);
+        bl_set_action(s, action, BL_ACT_DISCONNECT);
+        return BL_OK;
+    }
+    return bl_on_link_lost(s, action);
+}
+
 static bl_result bl_on_tick(bl_session *s, const bl_event *ev,
                             bl_action *action)
 {
@@ -509,6 +525,8 @@ bl_result bl_session_step(bl_session *state,
                    : bl_on_action_failed(state, action);
     case BL_EV_LINK_LOST:
         return bl_on_link_lost(state, action);
+    case BL_EV_LINK_CLOSED:
+        return bl_on_link_closed(state, action);
     case BL_EV_START:
     case BL_EV_RX_FRAME:
     case BL_EV_TX_DATA:

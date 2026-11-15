@@ -335,6 +335,28 @@ static void test_host_closes_first(void)
     assert(bl_driver_send(&r.drv, NULL, 0u, 0, 1) == BL_ERROR_STATE);
 }
 
+static void test_host_closes_the_transport_instead_of_end_stream(void)
+{
+    rig r;
+
+    /* EdgeWeave's Hub answers our DATA_END_STREAM by closing the TCP
+     * connection (docs/stream-binding.md: "or the TCP connection is
+     * closed"). That counts as the Host's end of stream. */
+    rig_init(&r, 0, 32u, 32u);
+    connect_and_open(&r, 7u);
+    assert(bl_driver_close(&r.drv) == BL_OK);
+    assert(r.ends == 0);
+    assert(bl_driver_link_closed(&r.drv) == BL_OK);
+    assert(r.ends == 1 && r.last_end.type == BL_ACT_DISCONNECT);
+    assert(r.last_end.error == BL_ERR_NONE);
+
+    /* a close before I finished is an error */
+    rig_init(&r, 0, 32u, 32u);
+    connect_and_open(&r, 7u);
+    assert(bl_driver_link_closed(&r.drv) == BL_OK);
+    assert(r.ends == 1 && r.last_end.error == BL_ERR_TRANSPORT);
+}
+
 static void test_peer_reset_and_status(void)
 {
     rig r;
@@ -538,6 +560,7 @@ int main(void)
 {
     test_happy_path_all_fragmentations();
     test_host_closes_first();
+    test_host_closes_the_transport_instead_of_end_stream();
     test_peer_reset_and_status();
     test_handshake_refused();
     test_handshake_timeout();

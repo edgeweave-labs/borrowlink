@@ -254,6 +254,15 @@ bl_result bl_driver_link_lost(bl_driver *d)
     return bl_driver_apply(d, ev, NULL);
 }
 
+bl_result bl_driver_link_closed(bl_driver *d)
+{
+    bl_event ev;
+
+    memset(&ev, 0, sizeof(ev));
+    ev.type = BL_EV_LINK_CLOSED;
+    return bl_driver_apply(d, ev, NULL);
+}
+
 bl_result bl_driver_tick(bl_driver *d, uint32_t now_ms)
 {
     bl_event ev;

@@ -622,6 +622,55 @@ static void test_tx_chunk_limited_by_tx_buffer(void)
     assert(f.a.size <= sizeof(tx));
 }
 
+static void test_tx_buffer_exactly_hello_sized(void)
+{
+    uint8_t tx[18];
+    uint8_t big[40];
+    bl_session_config c;
+    fx f;
+    uint8_t fr[64];
+    size_t n;
+
+    memset(&f, 0, sizeof(f));
+    memset(big, 9, sizeof(big));
+    cfg_default(&c, tx, sizeof(tx));
+    assert(bl_session_init(&f.s, &c) == BL_OK);
+    assert(do_start(&f, XID, 0u) == BL_OK); /* HELLO is exactly 18 bytes */
+    assert(f.a.size == 18u);
+    done_quiet(&f);
+    n = mk_accept(fr, XID, BORROWLINK_DELIVERY_RELIABLE, PEER_NODE, 4000u);
+    assert(do_rx(&f, BL_CHANNEL_CONTROL, fr, n) == BL_OK);
+    done_quiet(&f);
+    assert(f.s.tx_chunk_max == 15u);
+    assert(do_tx(&f, big, sizeof(big), 1, 0) == BL_OK);
+    assert(f.a.consumed == 15u && f.a.size == 18u);
+}
+
+static void test_integer_overflow_guards(void)
+{
+    static const uint8_t two[] = {1, 2};
+    uint8_t fr[64];
+    fx f;
+    size_t n;
+
+    /* message byte counter close to UINT32_MAX with no configured limit */
+    fx_init(&f);
+    open_session(&f, 64u);
+    f.s.rx_msg_bytes = UINT32_MAX - 1u;
+    n = mk_frame(fr, 1u, BORROWLINK_OPCODE_DATA, two, 2u);
+    assert(do_rx(&f, BL_CHANNEL_RELIABLE, fr, n) == BL_OK);
+    expect_local_reset(&f, BORROWLINK_RESET_LIMIT_EXCEEDED, BL_ERR_LIMIT, 1u);
+    /* sequence counters wrap, they never overflow into UB */
+    fx_init(&f);
+    open_session(&f, 64u);
+    f.s.tx_seq = 0xffffu;
+    f.s.rx_seq = 0xffffu;
+    n = mk_frame(fr, 0xffffu, BORROWLINK_OPCODE_DATA_END_MESSAGE, NULL, 0u);
+    assert(do_rx(&f, BL_CHANNEL_RELIABLE, fr, n) == BL_OK);
+    done_quiet(&f);
+    assert(f.s.rx_seq == 0u);
+}
+
 static void test_tx_seq_wraps(void)
 {
     fx f;
@@ -1018,6 +1067,62 @@ static void test_action_failed_and_link_lost(void)
     assert(f.a.type == BL_ACT_SESSION_RESET && f.a.error == BL_ERR_TRANSPORT);
 }
 
+static void test_link_closed(void)
+{
+    static const uint8_t part[] = {1};
+    uint8_t fr[64];
+    fx f;
+    size_t n;
+
+    /* I said goodbye, the peer closed the transport: normal completion */
+    fx_init(&f);
+    open_session(&f, 64u);
+    assert(do_tx(&f, NULL, 0u, 0, 1) == BL_OK);
+    done_quiet(&f);
+    assert(do_simple(&f, BL_EV_LINK_CLOSED) == BL_OK);
+    assert(f.a.type == BL_ACT_DISCONNECT && f.a.error == BL_ERR_NONE);
+    assert(f.s.phase == BL_PHASE_IDLE && f.s.last_error == BL_ERR_NONE);
+    done_quiet(&f);
+
+    /* ...even if my END_STREAM frame is still being sent */
+    fx_init(&f);
+    open_session(&f, 64u);
+    assert(do_tx(&f, NULL, 0u, 0, 1) == BL_OK);
+    assert(do_simple(&f, BL_EV_LINK_CLOSED) == BL_OK);
+    assert(f.a.type == BL_ACT_DISCONNECT);
+    done_quiet(&f);
+
+    /* the peer closed before I said goodbye: I can no longer send */
+    fx_init(&f);
+    open_session(&f, 64u);
+    assert(do_simple(&f, BL_EV_LINK_CLOSED) == BL_OK);
+    assert(f.a.type == BL_ACT_SESSION_RESET && f.a.error == BL_ERR_TRANSPORT &&
+           f.a.local == 0u);
+    done_quiet(&f);
+
+    /* the peer closed in the middle of a message: that is a truncation */
+    fx_init(&f);
+    open_session(&f, 64u);
+    n = data_frame(fr, 1u, BORROWLINK_OPCODE_DATA, part, 1u);
+    assert(do_rx(&f, BL_CHANNEL_RELIABLE, fr, n) == BL_OK);
+    done_quiet(&f);
+    assert(do_tx(&f, NULL, 0u, 0, 1) == BL_OK);
+    done_quiet(&f);
+    assert(do_simple(&f, BL_EV_LINK_CLOSED) == BL_OK);
+    assert(f.a.type == BL_ACT_SESSION_RESET && f.a.error == BL_ERR_TRANSPORT);
+    done_quiet(&f);
+
+    /* during the handshake, and when idle */
+    fx_init(&f);
+    assert(do_start(&f, XID, 0u) == BL_OK);
+    done_quiet(&f);
+    assert(do_simple(&f, BL_EV_LINK_CLOSED) == BL_OK);
+    assert(f.a.type == BL_ACT_SESSION_RESET && f.a.error == BL_ERR_TRANSPORT);
+    done_quiet(&f);
+    assert(do_simple(&f, BL_EV_LINK_CLOSED) == BL_OK);
+    assert(f.a.type == BL_ACT_NONE);
+}
+
 static void test_idle_behaviour(void)
 {
     uint8_t fr[64];
@@ -1194,6 +1299,8 @@ static size_t random_run(uint8_t *log, size_t log_size, uint32_t seed,
             e.now_ms = i + (rng() % 100u);
         } else if (pick < 93u) {
             e.type = BL_EV_LINK_LOST;
+        } else if (pick < 95u) {
+            e.type = BL_EV_LINK_CLOSED;
         } else if (pick < 97u) {
             e.type = BL_EV_ACTION_FAILED;
         } else {
@@ -1276,6 +1383,8 @@ int main(void)
     test_tx_opcodes_and_zero_length();
     test_tx_rules();
     test_tx_chunk_limited_by_tx_buffer();
+    test_tx_buffer_exactly_hello_sized();
+    test_integer_overflow_guards();
     test_tx_seq_wraps();
     test_rx_data_and_boundaries();
     test_rx_seq_checks();
@@ -1287,6 +1396,7 @@ int main(void)
     test_end_stream_inside_a_message_is_flagged();
     test_local_reset();
     test_action_failed_and_link_lost();
+    test_link_closed();
     test_idle_behaviour();
     test_argument_errors();
     test_reset_error_classes();

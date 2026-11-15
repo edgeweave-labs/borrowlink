@@ -14,7 +14,7 @@
  *   - One event produces at most one action.
  *   - After an action other than BL_ACT_NONE the caller must report
  *     ACTION_DONE/ACTION_FAILED before it feeds any event except
- *     BL_EV_LINK_LOST.  Anything else returns BL_ERROR_BUSY and changes
+ *     BL_EV_LINK_LOST or BL_EV_LINK_CLOSED.  Anything else returns BL_ERROR_BUSY and changes
  *     nothing.  The reducer may answer ACTION_DONE with a follow-up action
  *     (for example BL_ACT_SET_LINK_IDLE once both directions are closed).
  *   - Byte views inside an action (data) are valid until the next step.
@@ -90,8 +90,14 @@ typedef enum {
     BL_EV_LOCAL_RESET,   /* reason: abort the session */
     BL_EV_ACTION_DONE,
     BL_EV_ACTION_FAILED,
-    BL_EV_LINK_LOST,
-    BL_EV_TICK           /* now_ms */
+    BL_EV_LINK_LOST,     /* the transport failed or was reset */
+    BL_EV_TICK,          /* now_ms */
+    BL_EV_LINK_CLOSED    /* the peer closed the transport in an orderly way;
+                          * only meaningful for byte-stream bindings, where
+                          * it ends the peer's direction implicitly.  If I
+                          * had already sent DATA_END_STREAM the session
+                          * completes normally, otherwise it is a transport
+                          * failure. */
 } bl_event_type;
 
 typedef struct {
