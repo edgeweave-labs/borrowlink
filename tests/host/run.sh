@@ -15,13 +15,14 @@ c_flags="-std=c11 -Wall -Wextra -Werror -Iinclude -Iadapters/common"
 strict_flags="-pedantic -Wconversion -Wshadow"
 cxx_flags="-x c++ -std=c++17 -Wall -Wextra -Werror -Iinclude"
 
-core_sources="src/wire.c src/session.c src/binding.c profiles/message.c"
+core_sources="src/wire.c src/session.c src/binding.c profiles/message.c \
+profiles/http.c"
 driver_sources="adapters/common/bl_driver.c"
 
 # Tests that are also compiled as C++17 (header compatibility).
 dual_tests="tests/host/test_protocol_constants.c tests/host/test_wire.c"
 c_tests="tests/host/test_session.c tests/host/test_message.c \
-tests/host/test_binding.c tests/host/test_fake_adapter.c"
+tests/host/test_binding.c tests/host/test_http.c tests/host/test_fake_adapter.c"
 
 build_core() { # $1 = extra flags, $2 = output dir
     for src in $core_sources $driver_sources; do
@@ -36,7 +37,7 @@ plain="$borrowlink_test_dir/plain"
 mkdir -p "$plain"
 build_core "" "$plain"
 objs="$plain/wire.o $plain/session.o $plain/binding.o $plain/message.o \
-$plain/bl_driver.o"
+$plain/http.o $plain/bl_driver.o"
 
 for test_source in $dual_tests; do
     test_name="$(basename "$test_source" .c)"
@@ -90,7 +91,8 @@ fi
 san="$borrowlink_test_dir/san"
 mkdir -p "$san"
 build_core "$san_flags" "$san"
-sobjs="$san/wire.o $san/session.o $san/binding.o $san/message.o $san/bl_driver.o"
+sobjs="$san/wire.o $san/session.o $san/binding.o $san/message.o $san/http.o \
+$san/bl_driver.o"
 export ASAN_OPTIONS="detect_leaks=1:abort_on_error=0:halt_on_error=1"
 export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
 for test_source in $dual_tests $c_tests; do

@@ -6,6 +6,7 @@
 
 #include <borrowlink/binding.h>
 #include <borrowlink/borrowlink.h>
+#include <borrowlink/http.h>
 #include <borrowlink/message.h>
 #include <borrowlink/session.h>
 #include <bl_driver.h>
@@ -52,6 +53,12 @@ int main()
     assert(bl_binding_rx_init(&rx, rxbuf, sizeof(rxbuf), 40) == BL_OK);
     assert(bl_binding_reset_reason(BL_ERROR_LIMIT_EXCEEDED) ==
            BORROWLINK_RESET_LIMIT_EXCEEDED);
+    const bl_http_limits hlim = {64, 64, 64};
+    uint8_t hout[32];
+    size_t hlen = 0;
+    assert(bl_http_encode_request(hout, sizeof(hout), &hlen, BL_HTTP_GET,
+                                  "http://a/", 9, "", 0, &hlim) == BL_OK);
+    assert(hlen == BORROWLINK_HTTP_REQUEST_FIXED_SIZE + 9);
     bl_driver driver;
     (void)driver;
     return 0;

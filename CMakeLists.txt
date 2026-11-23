@@ -3,5 +3,6 @@ idf_component_register(
          "src/session.c"
          "src/binding.c"
          "profiles/message.c"
+         "profiles/http.c"
     INCLUDE_DIRS "include"
 )

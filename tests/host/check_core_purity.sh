@@ -37,7 +37,7 @@ done
 # 3. The compiled core may only import the memory/string helpers (and its own bl_* functions).
 objdir="${1:-}"
 if [ -n "$objdir" ]; then
-    for o in wire session binding message; do
+    for o in wire session binding message http; do
         und="$(nm -u "$objdir/$o.o" | awk '{print $2}' |
             grep -vE '^(memcpy|memmove|memset|memcmp|bl_[a-z_]+)$' || true)"
         if [ -n "$und" ]; then
@@ -47,7 +47,7 @@ if [ -n "$objdir" ]; then
         fi
     done
     # no writable global state: .data and .bss must be empty
-    for o in wire session binding message; do
+    for o in wire session binding message http; do
         sz="$(size -A "$objdir/$o.o" | awk '$1==".data"||$1==".bss"{s+=$2} END{print s+0}')"
         if [ "$sz" != "0" ]; then
             echo "FAIL: $o.o has $sz bytes of writable static data" >&2

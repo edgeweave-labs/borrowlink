@@ -389,6 +389,32 @@ http 與 https URL 都由 Host 執行。https 的 TLS 在 Host 終止，因此 H
 url_len、headers_len 與累計 body 大小都必須先與 caller 設定的上限比較。超限時
 RESET：LIMIT_EXCEEDED。
 
+### 9.1 Golden vectors
+
+整數為 big-endian（§7）。下列位元組是 `tests/host/test_http.c` 的測試常數，
+也是 `profiles/http.c` 的實作依據；它們只是示例，不改變上面的定義。
+
+Request 第一個邏輯訊息的 head（GET、url `http://example.com/a`、headers
+`Accept: */*`；body 為空，之後的 body bytes 直接接在 headers 後面）：
+
+~~~text
+01                                          method GET
+00 14                                       url_len 20
+00 0b                                       headers_len 11
+68 74 74 70 3a 2f 2f 65 78 61 6d 70 6c 65
+2e 63 6f 6d 2f 61                           "http://example.com/a"
+41 63 63 65 70 74 3a 20 2a 2f 2a            "Accept: */*"
+~~~
+
+Response head（status 200、headers `Content-Type: text/plain`）：
+
+~~~text
+00 c8                                       status 200
+00 18                                       headers_len 24
+43 6f 6e 74 65 6e 74 2d 54 79 70 65 3a 20
+74 65 78 74 2f 70 6c 61 69 6e               "Content-Type: text/plain"
+~~~
+
 ---
 
 ## 10. Opaque stream profile
